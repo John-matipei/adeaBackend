@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Panel | AdeaPmd CareerConnect</title>
+<style>
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    background: #f4f6f8;
+    color: #333;
+    padding: 20px;
+  }
+
+  h2 {
+    color: #c0392b;
+    margin-bottom: 15px;
+  }
+
+  form {
+    background: #fff;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+  }
+
+  form input, form textarea, form select {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 15px;
+  }
+
+  form button {
+    background: linear-gradient(90deg, #c0392b, #f39c12);
+    color: #fff;
+    border: none;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  form button:hover {
+    background: linear-gradient(90deg, #2c3e50, #f39c12);
+  }
+
+  #posts, #jobs {
+    margin-top: 20px;
+  }
+
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  .card h4 {
+    color: #c0392b;
+    margin: 0 0 5px 0;
+  }
+
+  .card p, .card a {
+    margin: 0;
+  }
+
+  .card img {
+    max-width: 150px;
+    margin-top: 10px;
+    border-radius: 8px;
+  }
+
+  .delete-btn {
+    margin-top: 10px;
+    background: #e74c3c;
+    color: #fff;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+
+  .delete-btn:hover {
+    background: #c0392b;
+  }
+
+</style>
+</head>
+<body>
+
+<h2>Create Post</h2>
+<form id="postForm" enctype="multipart/form-data">
+  <input type="text" name="title" placeholder="Title" required>
+  <textarea name="content" placeholder="Content" required></textarea>
+  <select name="type" required>
+    <option value="" disabled selected>Select Post Type</option>
+    <option value="Milestone">Milestone</option>
+    <option value="Success Story">Success Story</option>
+    <option value="Event">Event</option>
+    <option value="Update">Update</option>
+  </select>
+  <input type="file" name="media">
+  <button type="submit">Publish Post</button>
+</form>
+
+<h2>Posts</h2>
+<div id="posts"></div>
+
+<hr>
+
+<h2>Create Job</h2>
+<form id="jobForm">
+  <input type="text" name="title" placeholder="Job Title" required>
+  <input type="text" name="company" placeholder="Company" required>
+  <input type="url" name="link" placeholder="Application Link" required>
+  <button type="submit">Post Job</button>
+</form>
+
+<h2>Jobs</h2>
+<div id="jobs"></div>
+
+<script>
+  // ================= POSTS =================
+  async function loadPosts() {
+    const res = await fetch("/api/posts");
+    const posts = await res.json();
+    const container = document.getElementById("posts");
+
+    if (!posts || posts.length === 0) {
+      container.innerHTML = "<p>No posts yet.</p>";
+      return;
+    }
+
+    container.innerHTML = posts.map(p => `
+      <div class="card">
+        <h4>${p.title} (${p.type})</h4>
+        <p>${p.content}</p>
+        ${p.media ? `<img src="${p.media}" alt="${p.title}">` : ""}
+        <br>
+        <button class="delete-btn" onclick="deletePost(${p.id})">Delete</button>
+      </div>
+    `).join("");
+  }
+
+  async function deletePost(id) {
+    await fetch("/api/posts/" + id, { method: "DELETE" });
+    loadPosts();
+  }
+
+  document.getElementById("postForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    await fetch("/api/posts", { method: "POST", body: formData });
+    e.target.reset();
+    loadPosts();
+  });
+
+  // ================= JOBS =================
+  async function loadJobs() {
+    const res = await fetch("/api/jobs");
+    const jobs = await res.json();
+    const container = document.getElementById("jobs");
+
+    if (!jobs || jobs.length === 0) {
+      container.innerHTML = "<p>No jobs posted yet.</p>";
+      return;
+    }
+
+    container.innerHTML = jobs.map(j => `
+      <div class="card">
+        <h4>${j.title}</h4>
+        <strong>${j.company}</strong><br>
+        <a href="${j.link}" target="_blank">Apply Here</a><br>
+        <button class="delete-btn" onclick="deleteJob(${j.id})">Delete</button>
+      </div>
+    `).join("");
+  }
+
+  async function deleteJob(id) {
+    await fetch("/api/jobs/" + id, { method: "DELETE" });
+    loadJobs();
+  }
+
+  document.getElementById("jobForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+
+    await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data)
+    });
+
+    e.target.reset();
+    loadJobs();
+  });
+
+  // Initial load
+  loadPosts();
+  loadJobs();
+</script>
+
+</body>
+</html>
