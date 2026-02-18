@@ -1,28 +1,23 @@
-// ================= IMPORTS =================
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const cors = require("cors");
 
-// ================= APP =================
 const app = express();
 const PORT = 4000;
 
-// ================= PATHS =================
 const BACKEND_DIR = __dirname;
 const FRONTEND_DIR = path.join(__dirname, "..", "AdeaFront"); // Frontend folder
-const UPLOAD_DIR = path.join(FRONTEND_DIR, "uploads");
+const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads"); // Save uploads in backend/uploads
 
 const POSTS_FILE = path.join(BACKEND_DIR, "posts.json");
 const JOBS_FILE = path.join(BACKEND_DIR, "jobs.json");
 
-// ================= ENSURE UPLOADS =================
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-}
+// Ensure uploads folder exists
+if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-// ================= MULTER =================
+// ================= MULTER (IMAGES ONLY) =================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) =>
@@ -31,14 +26,16 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (req, file, cb) => {
-    const allowed = /jpeg|jpg|png|gif|mp4|mov|avi|mkv|webm/;
+    const allowed = /jpeg|jpg|png|gif|webp|mp4|webm/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
-    const mime = allowed.test(file.mimetype);
-    ext && mime ? cb(null, true) : cb(new Error("Invalid file type"));
+    const mime = /image|video/.test(file.mimetype);
+
+    ext && mime ? cb(null, true) : cb(new Error("Only images or videos allowed"));
   }
 });
+
 
 // ================= MIDDLEWARE =================
 app.use(cors());
@@ -46,8 +43,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ================= STATIC FILES =================
-app.use(express.static(FRONTEND_DIR)); // Serve frontend files
-app.use("/uploads", express.static(UPLOAD_DIR)); // Serve uploads
+app.use(express.static(FRONTEND_DIR));
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 // ================= ADMIN PANEL =================
 app.get("/admin", (req, res) => {
@@ -104,6 +101,7 @@ app.post("/api/jobs", (req, res) => {
     id: Date.now(),
     title: req.body.title,
     link: req.body.link,
+    company: req.body.company,
     date: new Date().toDateString()
   });
 
@@ -122,18 +120,11 @@ app.delete("/api/jobs/:id", (req, res) => {
   res.json({ success: true });
 });
 
-// ================= DEFAULT ROUTE =================
-// Serve frontend homepage
-app.get("/", (req, res) => {
-  res.sendFile(path.join(FRONTEND_DIR, "index.html"));
-});
-
-// Serve any other HTML page from frontend folder
+// ================= DEFAULT ROUTES =================
+app.get("/", (req, res) => res.sendFile(path.join(FRONTEND_DIR, "index.html")));
 app.get("/:page", (req, res) => {
-  const page = req.params.page;
-  const filePath = path.join(FRONTEND_DIR, page);
-  if (fs.existsSync(filePath)) res.sendFile(filePath);
-  else res.status(404).send("Page not found");
+  const page = path.join(FRONTEND_DIR, req.params.page);
+  fs.existsSync(page) ? res.sendFile(page) : res.status(404).send("Page not found");
 });
 
 // ================= START SERVER =================
