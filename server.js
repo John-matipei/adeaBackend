@@ -5,17 +5,17 @@ const multer = require("multer");
 const cors = require("cors");
 
 const app = express();
-const PORT = process.env.PORT || 4000; // Use Render's PORT if provided
+const PORT = process.env.PORT || 4000;
 
 const BACKEND_DIR = __dirname;
-const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads"); // Save uploads in backend/uploads
+const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads"); // uploads folder
 const POSTS_FILE = path.join(BACKEND_DIR, "posts.json");
 const JOBS_FILE = path.join(BACKEND_DIR, "jobs.json");
 
 // Ensure uploads folder exists
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
-// ================= MULTER (IMAGES & VIDEOS ONLY) =================
+// ================= MULTER =================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) =>
@@ -24,7 +24,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp|mp4|webm/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
@@ -37,7 +37,17 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(UPLOAD_DIR)); // serve uploaded files
+app.use("/uploads", express.static(UPLOAD_DIR));
+
+// ================= ADMIN PANEL =================
+app.get("/admin", (req, res) => {
+  const adminPage = path.join(BACKEND_DIR, "admin.html");
+  if (fs.existsSync(adminPage)) {
+    res.sendFile(adminPage);
+  } else {
+    res.status(404).send("Admin page not found");
+  }
+});
 
 // ================= POSTS API =================
 app.get("/api/posts", (req, res) => {
@@ -108,12 +118,13 @@ app.delete("/api/jobs/:id", (req, res) => {
   res.json({ success: true });
 });
 
-// ================= DEFAULT ROUTE =================
-app.get("/api", (req, res) => {
-  res.json({ message: "Backend is running 🚀" });
+// ================= DEFAULT / TEST ROUTE =================
+app.get("/", (req, res) => {
+  res.json({ message: "Backend is running. Use /admin to manage posts/jobs." });
 });
 
 // ================= START SERVER =================
 app.listen(PORT, () => {
   console.log(`✅ Server running at port ${PORT}`);
+  console.log(`🔐 Admin panel: /admin`);
 });
