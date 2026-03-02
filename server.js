@@ -17,17 +17,16 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// ================= MULTER CONFIG (LARGE FILES) =================
+// ================= MULTER CONFIG =================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) =>
     cb(null, Date.now() + path.extname(file.originalname))
 });
 
-// Increase fileSize limit to 500MB for long videos
 const upload = multer({
   storage,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
+  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB for long videos
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|webp|mp4|webm/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
