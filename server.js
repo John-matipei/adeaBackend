@@ -8,14 +8,16 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 const BACKEND_DIR = __dirname;
-const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads"); // uploads folder
+const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads");
 const POSTS_FILE = path.join(BACKEND_DIR, "posts.json");
 const JOBS_FILE = path.join(BACKEND_DIR, "jobs.json");
 
-// Ensure uploads folder exists
-if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// ================= ENSURE UPLOADS FOLDER =================
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
-// ================= MULTER =================
+// ================= MULTER CONFIG =================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) =>
@@ -29,7 +31,9 @@ const upload = multer({
     const allowed = /jpeg|jpg|png|gif|webp|mp4|webm/;
     const ext = allowed.test(path.extname(file.originalname).toLowerCase());
     const mime = /image|video/.test(file.mimetype);
-    ext && mime ? cb(null, true) : cb(new Error("Only images or videos allowed"));
+    ext && mime
+      ? cb(null, true)
+      : cb(new Error("Only images or videos allowed"));
   }
 });
 
@@ -73,14 +77,25 @@ app.post("/api/posts", upload.single("media"), (req, res) => {
   res.json({ success: true });
 });
 
+// ✅ PERMANENT DELETE POST + MEDIA FILE
 app.delete("/api/posts/:id", (req, res) => {
   const id = parseInt(req.params.id);
   if (!fs.existsSync(POSTS_FILE)) return res.json({ success: false });
 
-  const posts = JSON.parse(fs.readFileSync(POSTS_FILE))
-    .filter(p => p.id !== id);
+  let posts = JSON.parse(fs.readFileSync(POSTS_FILE));
+  const postToDelete = posts.find(p => p.id === id);
 
+  // delete media file if exists
+  if (postToDelete && postToDelete.media) {
+    const mediaPath = path.join(BACKEND_DIR, postToDelete.media);
+    if (fs.existsSync(mediaPath)) {
+      fs.unlinkSync(mediaPath);
+    }
+  }
+
+  posts = posts.filter(p => p.id !== id);
   fs.writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
+
   res.json({ success: true });
 });
 
@@ -107,20 +122,23 @@ app.post("/api/jobs", (req, res) => {
   res.json({ success: true });
 });
 
+// ✅ PERMANENT DELETE JOB
 app.delete("/api/jobs/:id", (req, res) => {
   const id = parseInt(req.params.id);
   if (!fs.existsSync(JOBS_FILE)) return res.json({ success: false });
 
   const jobs = JSON.parse(fs.readFileSync(JOBS_FILE))
-    .filter(j => j.id !== id);
+    .filter(job => job.id !== id);
 
   fs.writeFileSync(JOBS_FILE, JSON.stringify(jobs, null, 2));
   res.json({ success: true });
 });
 
-// ================= DEFAULT / TEST ROUTE =================
+// ================= DEFAULT ROUTE =================
 app.get("/", (req, res) => {
-  res.json({ message: "Backend is running. Use /admin to manage posts/jobs." });
+  res.json({
+    message: "Backend is running. Use /admin to manage posts and jobs."
+  });
 });
 
 // ================= START SERVER =================
