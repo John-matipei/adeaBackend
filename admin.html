@@ -136,15 +136,19 @@
       return;
     }
 
-    container.innerHTML = posts.map(p => `
-      <div class="card">
-        <h4>${p.title} (${p.type})</h4>
-        <p>${p.content}</p>
-        ${p.media ? `<img src="${p.media}" alt="${p.title}">` : ""}
-        <br>
-        <button class="delete-btn" onclick="deletePost(${p.id})">Delete</button>
-      </div>
-    `).join("");
+   container.innerHTML = posts.map(p => `
+  <div class="card">
+    <h4>${p.title} (${p.type})</h4>
+    <p>${p.content}</p>
+    ${p.media ? (
+      p.mediaType && p.mediaType.startsWith("video") 
+        ? `<video src="${p.media}" controls style="max-width:100%; margin-top:10px; border-radius:8px;"></video>`
+        : ''
+    ) : ""}
+    <br>
+    <button class="delete-btn" onclick="deletePost(${p.id})">Delete</button>
+  </div>
+`).join("");
   }
 
   async function deletePost(id) {
