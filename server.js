@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 const BACKEND_DIR = __dirname;
-const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads"); // Permanent video storage
+const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads");
 const POSTS_FILE = path.join(BACKEND_DIR, "posts.json");
 const JOBS_FILE = path.join(BACKEND_DIR, "jobs.json");
 
@@ -18,7 +18,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
-// ================= MULTER CONFIG (VIDEO ONLY) =================
+// ================= MULTER CONFIG (VIDEOS ONLY) =================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
@@ -42,7 +42,7 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use("/uploads", express.static(UPLOAD_DIR)); // Serve videos
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 // ================= ADMIN PANEL =================
 app.get("/admin", (req, res) => {
@@ -55,13 +55,7 @@ app.get("/admin", (req, res) => {
 // ================= POSTS API =================
 app.get("/api/posts", (req, res) => {
   if (!fs.existsSync(POSTS_FILE)) return res.json([]);
-  let posts = JSON.parse(fs.readFileSync(POSTS_FILE, "utf-8"));
-
-  // Remove any posts that have image links accidentally
-  posts = posts.filter(p => p.media && (p.media.endsWith(".mp4") || p.media.endsWith(".webm")));
-  fs.writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
-
-  res.json(posts);
+  res.json(JSON.parse(fs.readFileSync(POSTS_FILE, "utf-8")));
 });
 
 app.post("/api/posts", upload.single("media"), (req, res) => {
@@ -77,7 +71,7 @@ app.post("/api/posts", upload.single("media"), (req, res) => {
       title: req.body.title,
       content: req.body.content,
       type: req.body.type || "General",
-      media: `/uploads/${req.file.filename}`, // Local video path
+      media: `/uploads/${req.file.filename}`,
       mediaType: req.file.mimetype,
       date: new Date().toDateString()
     });
@@ -100,12 +94,13 @@ app.delete("/api/posts/:id", (req, res) => {
 
   if (post && post.media) {
     const videoPath = path.join(BACKEND_DIR, post.media);
-    if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); // Delete video locally
+    if (fs.existsSync(videoPath)) {
+      fs.unlinkSync(videoPath); // delete video only on delete
+    }
   }
 
   posts = posts.filter(p => p.id !== id);
   fs.writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
-
   res.json({ success: true });
 });
 
@@ -116,7 +111,9 @@ app.get("/api/jobs", (req, res) => {
 });
 
 app.post("/api/jobs", (req, res) => {
-  const jobs = fs.existsSync(JOBS_FILE) ? JSON.parse(fs.readFileSync(JOBS_FILE, "utf-8")) : [];
+  const jobs = fs.existsSync(JOBS_FILE)
+    ? JSON.parse(fs.readFileSync(JOBS_FILE, "utf-8"))
+    : [];
 
   jobs.unshift({
     id: Date.now(),
@@ -143,7 +140,7 @@ app.delete("/api/jobs/:id", (req, res) => {
 
 // ================= DEFAULT ROUTE =================
 app.get("/", (req, res) => {
-  res.json({ message: "Backend running (videos only, permanent local storage)" });
+  res.json({ message: "Backend running" });
 });
 
 // ================= START SERVER =================
