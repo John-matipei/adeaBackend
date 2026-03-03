@@ -4,34 +4,28 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const cors = require("cors");
-const cloudinary = require("cloudinary").v2;
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
 const BACKEND_DIR = __dirname;
+const UPLOAD_DIR = path.join(BACKEND_DIR, "uploads"); // Permanent video storage
 const POSTS_FILE = path.join(BACKEND_DIR, "posts.json");
 const JOBS_FILE = path.join(BACKEND_DIR, "jobs.json");
 
-// ================= CLOUDINARY CONFIG =================
-cloudinary.config({
-  cloud_name: "YOUR_CLOUD_NAME",    // Replace with your Cloudinary cloud name
-  api_key: "YOUR_API_KEY",          // Replace with your Cloudinary API key
-  api_secret: "YOUR_API_SECRET"     // Replace with your Cloudinary API secret
-});
+// ================= ENSURE UPLOADS FOLDER =================
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 // ================= MULTER CONFIG (VIDEO ONLY) =================
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, path.join(BACKEND_DIR, "temp")),
+  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
     const uniqueName = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, uniqueName + path.extname(file.originalname));
   }
 });
-
-if (!fs.existsSync(path.join(BACKEND_DIR, "temp"))) {
-  fs.mkdirSync(path.join(BACKEND_DIR, "temp"), { recursive: true });
-}
 
 const upload = multer({
   storage,
@@ -48,6 +42,7 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use("/uploads", express.static(UPLOAD_DIR)); // Serve videos
 
 // ================= ADMIN PANEL =================
 app.get("/admin", (req, res) => {
@@ -60,27 +55,29 @@ app.get("/admin", (req, res) => {
 // ================= POSTS API =================
 app.get("/api/posts", (req, res) => {
   if (!fs.existsSync(POSTS_FILE)) return res.json([]);
-  res.json(JSON.parse(fs.readFileSync(POSTS_FILE, "utf-8")));
+  let posts = JSON.parse(fs.readFileSync(POSTS_FILE, "utf-8"));
+
+  // Remove any posts that have image links accidentally
+  posts = posts.filter(p => p.media && (p.media.endsWith(".mp4") || p.media.endsWith(".webm")));
+  fs.writeFileSync(POSTS_FILE, JSON.stringify(posts, null, 2));
+
+  res.json(posts);
 });
 
-app.post("/api/posts", upload.single("media"), async (req, res) => {
+app.post("/api/posts", upload.single("media"), (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Video is required" });
 
-    // Upload to Cloudinary
-    const result = await cloudinary.uploader.upload(req.file.path, { resource_type: "video" });
-
-    // Delete temp file
-    fs.unlinkSync(req.file.path);
-
-    const posts = fs.existsSync(POSTS_FILE) ? JSON.parse(fs.readFileSync(POSTS_FILE, "utf-8")) : [];
+    const posts = fs.existsSync(POSTS_FILE)
+      ? JSON.parse(fs.readFileSync(POSTS_FILE, "utf-8"))
+      : [];
 
     posts.unshift({
       id: Date.now(),
       title: req.body.title,
       content: req.body.content,
       type: req.body.type || "General",
-      media: result.secure_url,
+      media: `/uploads/${req.file.filename}`, // Local video path
       mediaType: req.file.mimetype,
       date: new Date().toDateString()
     });
@@ -94,7 +91,7 @@ app.post("/api/posts", upload.single("media"), async (req, res) => {
 });
 
 // DELETE POST + VIDEO
-app.delete("/api/posts/:id", async (req, res) => {
+app.delete("/api/posts/:id", (req, res) => {
   const id = Number(req.params.id);
   if (!fs.existsSync(POSTS_FILE)) return res.json({ success: false });
 
@@ -102,13 +99,8 @@ app.delete("/api/posts/:id", async (req, res) => {
   const post = posts.find(p => p.id === id);
 
   if (post && post.media) {
-    try {
-      // Delete from Cloudinary
-      const publicId = post.media.split("/").pop().split(".")[0];
-      await cloudinary.uploader.destroy(publicId, { resource_type: "video" });
-    } catch (err) {
-      console.warn("Failed to delete video from Cloudinary:", err.message);
-    }
+    const videoPath = path.join(BACKEND_DIR, post.media);
+    if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath); // Delete video locally
   }
 
   posts = posts.filter(p => p.id !== id);
@@ -151,7 +143,7 @@ app.delete("/api/jobs/:id", (req, res) => {
 
 // ================= DEFAULT ROUTE =================
 app.get("/", (req, res) => {
-  res.json({ message: "Backend running" });
+  res.json({ message: "Backend running (videos only, permanent local storage)" });
 });
 
 // ================= START SERVER =================
